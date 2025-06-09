@@ -21,19 +21,19 @@ export const auth = getAuth(app);
 export const database = getDatabase(app);
 
 // Only connect to emulators in development and if not already connected
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-  try {
-    // Check if already connected to avoid multiple connections
-    if (!auth.config.emulator) {
-      // connectAuthEmulator(auth, 'http://localhost:9099');
-    }
-    if (!(database as any)._delegate._repoInternal.repoInfo_.host.includes('localhost')) {
-      // connectDatabaseEmulator(database, 'localhost', 9000);
-    }
-  } catch (error) {
-    // Emulators already connected or not available
-    console.log('Firebase emulators not connected:', error);
-  }
-}
+// if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+//   try {
+//     // Check if already connected to avoid multiple connections
+//     if (!auth.config.emulator) {
+//       // connectAuthEmulator(auth, 'http://localhost:9099');
+//     }
+//     if (!(database as any)._delegate._repoInternal.repoInfo_.host.includes('localhost')) {
+//       // connectDatabaseEmulator(database, 'localhost', 9000);
+//     }
+//   } catch (error) {
+//     // Emulators already connected or not available
+//     console.log('Firebase emulators not connected:', error);
+//   }
+
 
 export default app;
