@@ -29,9 +29,9 @@ export function Layout({ children }: LayoutProps) {
               <h1 className="text-2xl font-bold text-white">ZA Legal</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-[#B8A799] text-sm">
+              {/* <span className="text-[#B8A799] text-sm">
                 {user?.email}
-              </span>
+              </span> */}
               <Button
                 onClick={handleLogout}
                 variant="outline"
