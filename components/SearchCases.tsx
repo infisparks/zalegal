@@ -657,6 +657,7 @@ export function SearchCases() {
             </Card>
           )}
 
+
           {/* Loading State */}
           {loading && (
             <Card className="border-0 shadow-sm">
