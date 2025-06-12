@@ -7,17 +7,24 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Plus,
-  Search,
   FileText,
   BarChart3,
   Calendar,
   DollarSign,
   TrendingUp,
-  Clock
+  Clock,
+  Wallet // New icon for payments
 } from 'lucide-react';
 import { database } from '@/lib/firebase';
 import { ref, onValue } from 'firebase/database';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar } from 'recharts';
+
+// --- INTERFACES ---
+interface Payment {
+  amount: number;
+  method: 'Cash' | 'Online' | '';
+  date: string;
+}
 
 interface CaseData {
   id: string;
@@ -27,6 +34,9 @@ interface CaseData {
   date: string;
   totalAmount: number;
   particulars: any[];
+  payments: Payment[]; // Added for payments
+  paidAmount: number; // Added for total paid
+  remainingAmount: number; // Added for remaining amount
 }
 
 export function Dashboard() {
@@ -37,10 +47,10 @@ export function Dashboard() {
     totalCases: 0,
     totalAmount: 0,
     thisMonthCases: 0,
-    thisMonthAmount: 0
+    thisMonthAmount: 0,
+    totalPaymentsReceived: 0, // New stat
+    thisMonthPaymentsReceived: 0, // New stat
   });
-
-  // --- FIX STARTS HERE ---
 
   // Helper function to safely parse dates that might be in non-standard formats.
   const parseDate = (dateString: string): Date | null => {
@@ -72,10 +82,19 @@ export function Dashboard() {
     const unsubscribe = onValue(casesRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const casesArray = Object.entries(data).map(([id, caseData]: [string, any]) => ({
-          id,
-          ...caseData
-        }));
+        const casesArray = Object.entries(data).map(([id, caseData]: [string, any]) => {
+          const payments = caseData.payments || [];
+          const paidAmount = payments.reduce((sum: number, p: Payment) => sum + p.amount, 0);
+          const totalAmount = caseData.totalAmount || 0; // Ensure totalAmount exists
+          return {
+            id,
+            ...caseData,
+            particulars: caseData.particulars || [],
+            payments: payments,
+            paidAmount: paidAmount,
+            remainingAmount: totalAmount - paidAmount,
+          };
+        });
         
         // Sort cases by date descending to show the most recent ones first
         const sortedCases = casesArray.sort((a, b) => {
@@ -92,7 +111,9 @@ export function Dashboard() {
           totalCases: 0,
           totalAmount: 0,
           thisMonthCases: 0,
-          thisMonthAmount: 0
+          thisMonthAmount: 0,
+          totalPaymentsReceived: 0,
+          thisMonthPaymentsReceived: 0,
         });
       }
       setLoading(false);
@@ -105,16 +126,33 @@ export function Dashboard() {
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
     
+    let totalPaymentsReceived = 0;
+    let thisMonthPaymentsReceived = 0;
+
     const thisMonthCases = casesData.filter(caseItem => {
       const caseDate = parseDate(caseItem.date); // Use the safe parser
       return caseDate && caseDate.getMonth() === currentMonth && caseDate.getFullYear() === currentYear;
+    });
+
+    casesData.forEach(caseItem => {
+      if (caseItem.payments) {
+        caseItem.payments.forEach(payment => {
+          totalPaymentsReceived += payment.amount;
+          const paymentDate = parseDate(payment.date);
+          if (paymentDate && paymentDate.getMonth() === currentMonth && paymentDate.getFullYear() === currentYear) {
+            thisMonthPaymentsReceived += payment.amount;
+          }
+        });
+      }
     });
 
     setStats({
       totalCases: casesData.length,
       totalAmount: casesData.reduce((sum, caseItem) => sum + (caseItem.totalAmount || 0), 0),
       thisMonthCases: thisMonthCases.length,
-      thisMonthAmount: thisMonthCases.reduce((sum, caseItem) => sum + (caseItem.totalAmount || 0), 0)
+      thisMonthAmount: thisMonthCases.reduce((sum, caseItem) => sum + (caseItem.totalAmount || 0), 0),
+      totalPaymentsReceived: totalPaymentsReceived,
+      thisMonthPaymentsReceived: thisMonthPaymentsReceived,
     });
   };
 
@@ -143,8 +181,6 @@ export function Dashboard() {
         .map(key => monthlyData[key]);
   };
 
-  // --- FIX ENDS HERE ---
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -159,7 +195,7 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"> {/* Adjusted grid-cols */}
         <Button
           onClick={() => router.push('/case-entry')}
           className="h-20 bg-[#CAA068] hover:bg-[#B8A799] text-white flex flex-col items-center justify-center space-y-2"
@@ -168,17 +204,10 @@ export function Dashboard() {
           <span className="font-medium">Add Case Entry</span>
         </Button>
         
-        <Button
-          onClick={() => router.push('/search')}
-          variant="outline"
-          className="h-20 border-[#CAA068] text-[#2B2F32] hover:bg-[#CAA068] hover:text-white flex flex-col items-center justify-center space-y-2"
-        >
-          <Search className="h-6 w-6" />
-          <span className="font-medium">Search Cases</span>
-        </Button>
+        {/* Removed "Search Cases" button */}
         
         <Button
-          onClick={() => router.push('/bill-details')}
+          onClick={() => router.push('/bill-detail')} // Assuming /bill-analytics is for detailed charts/stats
           variant="outline"
           className="h-20 border-[#CAA068] text-[#2B2F32] hover:bg-[#CAA068] hover:text-white flex flex-col items-center justify-center space-y-2"
         >
@@ -187,7 +216,7 @@ export function Dashboard() {
         </Button>
         
         <Button
-          onClick={() => router.push('/bill-list')}
+          onClick={() => router.push('/bill-detail')}
           variant="outline"
           className="h-20 border-[#CAA068] text-[#2B2F32] hover:bg-[#CAA068] hover:text-white flex flex-col items-center justify-center space-y-2"
         >
@@ -214,7 +243,7 @@ export function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-[#2B2F32]/60">Total Amount</p>
+                <p className="text-sm font-medium text-[#2B2F32]/60">Total Bill Amount</p> {/* Changed title */}
                 <p className="text-2xl font-bold text-[#2B2F32]">{formatCurrency(stats.totalAmount)}</p>
               </div>
               <DollarSign className="h-8 w-8 text-[#B8A799]" />
@@ -226,10 +255,10 @@ export function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-[#2B2F32]/60">This Month Cases</p>
-                <p className="text-3xl font-bold text-[#2B2F32]">{stats.thisMonthCases}</p>
+                <p className="text-sm font-medium text-[#2B2F32]/60">Total Payments Received</p> {/* New Stat */}
+                <p className="text-2xl font-bold text-[#2B2F32]">{formatCurrency(stats.totalPaymentsReceived)}</p>
               </div>
-              <Calendar className="h-8 w-8 text-[#CAA068]" />
+              <Wallet className="h-8 w-8 text-[#CAA068]" />
             </div>
           </CardContent>
         </Card>
@@ -238,8 +267,8 @@ export function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-[#2B2F32]/60">This Month Amount</p>
-                <p className="text-2xl font-bold text-[#2B2F32]">{formatCurrency(stats.thisMonthAmount)}</p>
+                <p className="text-sm font-medium text-[#2B2F32]/60">This Month Payments</p> {/* New Stat */}
+                <p className="text-2xl font-bold text-[#2B2F32]">{formatCurrency(stats.thisMonthPaymentsReceived)}</p>
               </div>
               <TrendingUp className="h-8 w-8 text-[#B8A799]" />
             </div>
@@ -309,27 +338,31 @@ export function Dashboard() {
           ) : (
             <div className="space-y-4">
               {cases.slice(0, 5).map((caseItem) => {
-                // --- FIX: Use the parsed date for display ---
                 const displayDate = parseDate(caseItem.date);
                 return (
                   <div key={caseItem.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <Badge variant="outline" className="text-xs">
-                          {caseItem.billNumber}
+                          Bill No: {caseItem.billNumber}
                         </Badge>
                         <Badge variant="secondary" className="text-xs">
-                          {caseItem.caseNumber}
+                          Case No: {caseItem.caseNumber}
                         </Badge>
                       </div>
                       <p className="font-medium text-[#2B2F32]">{caseItem.caseDescription}</p>
-                      {/* Show formatted date or a fallback message */}
                       <p className="text-sm text-[#2B2F32]/60">
                         {displayDate ? displayDate.toLocaleDateString('en-GB') : 'Invalid Date'}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-[#CAA068]">{formatCurrency(caseItem.totalAmount || 0)}</p>
+                      <p className="font-bold text-[#CAA068]">Bill: {formatCurrency(caseItem.totalAmount || 0)}</p>
+                      {caseItem.paidAmount > 0 && (
+                        <p className="text-sm text-green-700 font-medium">Paid: {formatCurrency(caseItem.paidAmount)}</p>
+                      )}
+                      {caseItem.remainingAmount > 0 && (
+                        <p className="text-sm text-red-700 font-medium">Due: {formatCurrency(caseItem.remainingAmount)}</p>
+                      )}
                       <p className="text-sm text-[#2B2F32]/60">{caseItem.particulars?.length || 0} items</p>
                     </div>
                   </div>
